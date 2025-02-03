@@ -1,4 +1,5 @@
 # backdoor-playground
+<img src="https://github.com/dokDork/backdoor-playground/raw/main/images/backdoor.png" width="250" height="250">  
 Welcome to the ultimate playground for network enthusiasts! This repository features a sleek **C reverse undetectable shell** that connects back to your server, paired with a Python interception server ready to monitor those calls.
 🚀 What’s Inside?
 - **C Reverse Shell Client**: Lightweight and efficient, perfect for mastering socket programming.
