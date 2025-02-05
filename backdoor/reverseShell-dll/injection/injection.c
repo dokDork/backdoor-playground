@@ -1,90 +1,138 @@
-#include <windows.h>
 #include <stdio.h>
+#include <windows.h>
+#include <shellapi.h>
+#include <stdint.h>
 #include <tlhelp32.h>
 
-// Get the process ID by process name
-int getPIDbyProcName(const char* procName) {
-    int pid = 0;
-    HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    PROCESSENTRY32 pe32;
-    pe32.dwSize = sizeof(PROCESSENTRY32);
-    if (Process32First(hSnap, &pe32) != FALSE) {
-        while (pid == 0 && Process32Next(hSnap, &pe32) != FALSE) {
-            if (strcmp(pe32.szExeFile, procName) == 0) {
-                pid = pe32.th32ProcessID;
-            }
-        }
+// Function to get the process ID by its name
+DWORD GetProcessIdByName(const char* processName)
+{
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hSnapshot == INVALID_HANDLE_VALUE)
+    {
+        fprintf(stderr, "Error obtaining the snapshot of processes.\n");
+        return 0;
     }
-    CloseHandle(hSnap);
-    return pid;
+
+    PROCESSENTRY32 pe32 = { sizeof(PROCESSENTRY32) };
+    if (!Process32First(hSnapshot, &pe32))
+    {
+        fprintf(stderr, "Error obtaining information about the first process.\n");
+        CloseHandle(hSnapshot);
+        return 0;
+    }
+
+    DWORD processId = 0;
+
+    do
+    {
+        if (strcmp(pe32.szExeFile, processName) == 0)
+        {
+            processId = pe32.th32ProcessID; // Update to get the most recent instance
+        }
+    } while (Process32Next(hSnapshot, &pe32));
+
+    CloseHandle(hSnapshot);
+
+    return processId; // Return the last found PID
 }
 
-const char* DLL_NAME = "test.dll";
+int main()
+{
+    const char* processName = "notepad.exe";
+    const char* dllPath = "test.dll"; // Replace with the actual path of your DLL
 
-typedef LPVOID Memory;
-
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    HWND hWnd = GetConsoleWindow(); // Get the console window handle
-    ShowWindow(hWnd, SW_HIDE); // Hide the console window
-    // Get the process ID by the process name (in this case, "notepad.exe")
-    int processId = getPIDbyProcName("notepad.exe");
-
-    if (processId == 0) {
-        printf("Process not found\n");
+    // Create a new instance of notepad.exe
+    intptr_t result = (intptr_t)ShellExecuteA(NULL, "open", processName, NULL, NULL, SW_HIDE);
+    if (result <= 32)
+    {
+        fprintf(stderr, "Error creating the process.\n");
         return 1;
     }
 
-    // Open a handle to the process with full access permissions
-    HANDLE processHandle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processId);
-    if (processHandle == NULL) {
-        printf("Error opening handle\n");
-        return 1;
+    // Get the process ID from the instance handle
+    DWORD pid;
+    GetWindowThreadProcessId((HWND)result, &pid);
+
+    printf("Process created. PID: %lu\n", pid);
+
+    // Search for the most recent process by its name and display its PID
+    DWORD foundPid = GetProcessIdByName(processName);
+    
+    if (foundPid != 0)
+    {
+        printf("PID of the found process: %lu\n", foundPid);
+
+        // Open the process with the necessary permissions
+        HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, foundPid);
+        if (!hProcess)
+        {
+            fprintf(stderr, "Error opening the process.\n");
+            return 1;
+        }
+
+        // Allocate space in the process for the DLL name
+        LPVOID dllPathMemory = VirtualAllocEx(hProcess, NULL, strlen(dllPath) + 1, MEM_COMMIT, PAGE_READWRITE);
+        if (!dllPathMemory)
+        {
+            fprintf(stderr, "Error allocating memory in the process.\n");
+            CloseHandle(hProcess);
+            return 1;
+        }
+
+        // Write the DLL name into the memory of the process
+        if (!WriteProcessMemory(hProcess, dllPathMemory, dllPath, strlen(dllPath) + 1, NULL))
+        {
+            fprintf(stderr, "Error writing the DLL name into the memory of the process.\n");
+            CloseHandle(hProcess);
+            return 1;
+        }
+
+        // Get the address of LoadLibraryA function from kernel32.dll
+        HMODULE hKernel32 = GetModuleHandle("kernel32.dll");
+        if (!hKernel32)
+        {
+            fprintf(stderr, "Error obtaining handle for kernel32.dll.\n");
+            CloseHandle(hProcess);
+            return 1;
+        }
+
+        FARPROC pLoadLibraryA = GetProcAddress(hKernel32, "LoadLibraryA");
+        if (!pLoadLibraryA)
+        {
+            fprintf(stderr, "Error obtaining address of LoadLibraryA function.\n");
+            CloseHandle(hProcess);
+            return 1;
+        }
+
+        // Create a remote thread in the process to load the DLL
+        HANDLE hThread = CreateRemoteThread(hProcess, NULL, 0, (LPTHREAD_START_ROUTINE)pLoadLibraryA, dllPathMemory, 0, NULL);
+        if (!hThread)
+        {
+            fprintf(stderr, "Error creating remote thread in the process.\n");
+            CloseHandle(hProcess);
+            return 1;
+        }
+
+        // Wait for the remote thread to finish
+        if (WaitForSingleObject(hThread, INFINITE) == WAIT_FAILED)
+        {
+            fprintf(stderr, "Error waiting for remote thread to finish.\n");
+            CloseHandle(hThread);
+            CloseHandle(hProcess);
+            return 1;
+        }
+
+        printf("DLL successfully injected and loaded.\n");
+
+        // Clean up resources
+        CloseHandle(hThread);
+        CloseHandle(hProcess);
+    }
+    else
+    {
+        printf("The process was not found.\n");
     }
 
-    char dllPath[MAX_PATH];
-    GetFullPathNameA(DLL_NAME, MAX_PATH, dllPath, NULL);
-
-    // Allocate memory in the process to store the DLL path
-    Memory dllPathAddress = VirtualAllocEx(processHandle, NULL, strlen(dllPath) + 1, MEM_COMMIT, PAGE_READWRITE);
-    if (dllPathAddress == NULL) {
-        printf("Error creating memory\n");
-        CloseHandle(processHandle);
-        return 1;
-    }
-
-    // Write the DLL name to the allocated memory of the process
-    if (!WriteProcessMemory(processHandle, dllPathAddress, dllPath, strlen(dllPath) + 1, NULL)) {
-        printf("Failed to write the DLL name to allocated memory\n");
-        VirtualFreeEx(processHandle, dllPathAddress, 0, MEM_RELEASE);
-        CloseHandle(processHandle);
-        return 1;
-    }
-
-    // Get the address of the LoadLibraryA function from kernel32.dll
-    Memory loadLibraryAddress = GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA");
-    if (loadLibraryAddress == NULL) {
-        printf("Failed to get the address of LoadLibraryA\n");
-        VirtualFreeEx(processHandle, dllPathAddress, 0, MEM_RELEASE);
-        CloseHandle(processHandle);
-        return 1;
-    }
-
-    // Create a remote thread in the process to load the DLL
-    HANDLE remoteThread = CreateRemoteThread(processHandle, NULL, 0, (LPTHREAD_START_ROUTINE)loadLibraryAddress, dllPathAddress, 0, NULL);
-    if (remoteThread == NULL) {
-        printf("Error injecting DLL\n");
-        VirtualFreeEx(processHandle, dllPathAddress, 0, MEM_RELEASE);
-        CloseHandle(processHandle);
-        return 1;
-    }
-
-    // Wait for the remote thread to complete execution
-    WaitForSingleObject(remoteThread, INFINITE);
-
-    CloseHandle(remoteThread);
-    VirtualFreeEx(processHandle, dllPathAddress, 0, MEM_RELEASE);
-    CloseHandle(processHandle);
-
-    printf("DLL injection completed\n");
     return 0;
 }
