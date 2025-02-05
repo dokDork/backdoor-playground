@@ -15,3 +15,8 @@ Welcome to the ultimate playground for network enthusiasts! This repository feat
 
 ## Dive In!
 Check out the code, unleash your creativity, and explore the exciting world of reverse shells! Don’t forget to star ⭐ this repository if you enjoy it! Feel free to modify any part as needed!
+
+3 projects have been created that can be opened directly with visual studio code:
+- **reverseshell**: This project creates a simple reverse shell that is not detected by antivirus software.
+- **reverseShell-dll**: This project generates the reverse shell code within a DLL and injects it into the notepad.exe process. If the process does not exist, it automatically creates it.
+- **reverseShell-rust**: This project **can inject the code of a reverse shell created with msfvenom** into the notepad.exe process. Again, if the process does not exist, it will be created automatically.
