@@ -37,8 +37,12 @@ DWORD GetProcessIdByName(const char* processName)
     return processId; // Return the last found PID
 }
 
-int main()
-{
+//int main()
+//{
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    HWND hWnd = GetConsoleWindow(); // Get the console window handle
+    ShowWindow(hWnd, SW_HIDE); // Hide the console window
+
     const char* processName = "notepad.exe";
     const char* dllPath = "test.dll"; // Replace with the actual path of your DLL
 
