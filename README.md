@@ -20,3 +20,6 @@ Check out the code, unleash your creativity, and explore the exciting world of r
 - **reverseshell**: This project creates a simple reverse shell that is not detected by antivirus software.
 - **reverseShell-dll**: This project generates the reverse shell code within a DLL and injects it into the notepad.exe process. If the process does not exist, it automatically creates it.
 - **reverseShell-rust**: This project **can inject the code of a reverse shell created with msfvenom** into the notepad.exe process. Again, if the process does not exist, it will be created automatically.
+
+---
+Author: Luigi Capuzzello (dokDork) · [Website](https://capuzzello.altervista.org/) · [LinkedIn](https://www.linkedin.com/in/luigi-capuzzello/)
